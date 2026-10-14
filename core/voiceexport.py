@@ -34,7 +34,7 @@ def _safe(name: str) -> str:
 
 
 def export_contact(contact, voice_map: dict, target_ms: int, fmt: str,
-                   out_dir, decode) -> Path:
+                   out_dir, decode, trim: bool = True) -> Path:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     clips = select_clips(contact.clips, target_ms)
@@ -47,10 +47,15 @@ def export_contact(contact, voice_map: dict, target_ms: int, fmt: str,
             pcm += decode(data)
         except Exception:
             continue
+    pcm = bytes(pcm)
+    if trim:
+        max_bytes = int(target_ms / 1000 * SAMPLE_RATE) * 2
+        if len(pcm) > max_bytes:
+            pcm = pcm[:max_bytes]
     if fmt == "mp3":
         path = out_dir / ("%s_%s.mp3" % (_safe(contact.name), contact.username))
-        path.write_bytes(encode_mp3(bytes(pcm)))
+        path.write_bytes(encode_mp3(pcm))
     else:
         path = out_dir / ("%s_%s.wav" % (_safe(contact.name), contact.username))
-        path.write_bytes(pcm_to_wav(bytes(pcm)))
+        path.write_bytes(pcm_to_wav(pcm))
     return path
