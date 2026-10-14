@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
-runtime/node/node.exe
-runtime/node/node_modules/
 *.log
+
+# 打包时内置的 Node 运行时与依赖（由脚本/说明获取，不入库）
+runtime/node/node.exe
+runtime/node_modules/
