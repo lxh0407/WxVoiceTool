@@ -1,0 +1,8 @@
+PySide6
+pycryptodome
+zstandard
+pefile
+yara-python
+pymem
+lameenc
+pytest
