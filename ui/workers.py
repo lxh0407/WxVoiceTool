@@ -1,16 +1,10 @@
-import glob
+import os
 import sqlite3
+from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
 from core import dbdecrypt, keyfinder, locate, paths, silk, voiceexport, voiceindex
-
-
-def find_dll() -> str:
-    cands = glob.glob(r"C:\Program Files\Tencent\Weixin\*\Weixin.dll")
-    if not cands:
-        raise RuntimeError("找不到 Weixin.dll，请在微信安装目录下确认")
-    return sorted(cands)[-1]
 
 
 class PrepareWorker(QThread):
@@ -18,24 +12,41 @@ class PrepareWorker(QThread):
     done = Signal(object)
     failed = Signal(str, bool)
 
-    def __init__(self, manual_key: str | None = None):
+    def __init__(self, manual_key: str | None = None, settings: dict | None = None):
         super().__init__()
         self.manual_key = manual_key
+        self.settings = settings or {}
+
+    def _resolve(self):
+        root = None
+        cfg_root = self.settings.get("data_root")
+        if cfg_root and Path(cfg_root).is_dir():
+            root = Path(cfg_root)
+        if root is None:
+            root = locate.find_data_root()
+        if root is None:
+            raise RuntimeError("未找到微信数据目录（xwechat_files）。请在【设置】中手动指定。")
+        accounts = locate.find_accounts(root)
+        if not accounts:
+            raise RuntimeError("该数据目录下未找到微信账号（含 db_storage 的目录）。请在【设置】中检查。")
+        cfg_acc = self.settings.get("account_dir")
+        acc = None
+        if cfg_acc:
+            acc = next((a for a in accounts if str(a.account_dir) == cfg_acc), None)
+        if acc is None:
+            acc = accounts[0]
+        dll = self.settings.get("dll")
+        if not (dll and os.path.isfile(dll)):
+            dll = locate.find_weixin_dll()
+        return root, accounts, acc, dll
 
     def run(self):
         try:
             paths.ensure_dirs()
             self.progress.emit(2, "定位微信数据目录…")
-            root = locate.find_data_root()
-            if not root:
-                self.failed.emit("未找到微信数据目录（xwechat_files）。", False)
-                return
-            accounts = locate.find_accounts(root)
-            if not accounts:
-                self.failed.emit("未找到微信账号目录。", False)
-                return
-            acc = accounts[0]
-            dll = find_dll()
+            root, accounts, acc, dll = self._resolve()
+            if len(accounts) > 1:
+                self.progress.emit(4, "检测到 %d 个账号，已选 %s（可在【设置】中切换）" % (len(accounts), acc.wxid))
             session_db = acc.account_dir / "db_storage" / "session" / "session.db"
 
             key = None
@@ -48,13 +59,17 @@ class PrepareWorker(QThread):
                                               cache.get("version", ""), "cache")
                     self.progress.emit(10, "使用已缓存密钥")
             if key is None:
+                if not dll:
+                    self.failed.emit(
+                        "未找到 Weixin.dll（自动定位失败）。请在【设置】中指定，或手动粘贴 64 位密钥。", True)
+                    return
                 self.progress.emit(15, "正在提取密钥（读取微信进程内存）…")
                 key = keyfinder.recover_key(
                     acc, dll, session_db,
                     progress=lambda i, n: self.progress.emit(
                         15 + int(20 * i / max(n, 1)), "扫描进程 %d/%d" % (i + 1, n)))
                 if key is None:
-                    self.failed.emit("未能提取密钥（微信版本特征可能已变化）。可手动粘贴 64 位密钥。", True)
+                    self.failed.emit("未能提取密钥（微信版本特征可能已变化）。可在【设置】中手动粘贴 64 位密钥。", True)
                     return
                 keyfinder.save_cache(key)
 

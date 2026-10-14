@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QRadioButton, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
 
-from core import paths
+from core import paths, settings
+from ui.settings_dialog import SettingsDialog
 from ui.workers import ExportWorker, PrepareWorker
 
 CHECK_COL, NAME_COL, DUR_COL, CNT_COL = 0, 1, 2, 3
@@ -24,6 +25,7 @@ class MainWindow(QMainWindow):
         self._account = None
         self._prepare = None
         self._export = None
+        self._config = settings.load()
         self._build_ui()
         if auto_start:
             self._start_prepare()
@@ -47,9 +49,12 @@ class MainWindow(QMainWindow):
         self.status.setObjectName("Sub")
         self.redetect_btn = QPushButton("重新检测")
         self.redetect_btn.clicked.connect(lambda: self._start_prepare())
+        self.settings_btn = QPushButton("设置")
+        self.settings_btn.clicked.connect(self._open_settings)
         hl.addWidget(title)
         hl.addSpacing(10)
         hl.addWidget(self.status, 1)
+        hl.addWidget(self.settings_btn)
         hl.addWidget(self.redetect_btn)
         outer.addWidget(header)
 
@@ -161,7 +166,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.table.setRowCount(0)
         self.status.setText("准备中…")
-        self._prepare = PrepareWorker(manual_key)
+        self._prepare = PrepareWorker(manual_key, self._config)
         self._prepare.progress.connect(self._on_progress)
         self._prepare.done.connect(self._on_prepared)
         self._prepare.failed.connect(self._on_failed)
@@ -179,6 +184,14 @@ class MainWindow(QMainWindow):
         self.status.setText("账号 %s · %d 位联系人可提取语音" % (self._account.wxid, len(self._index)))
         self._append("密钥来源：%s" % data["key"].source)
         self._populate(self._index)
+
+    def _open_settings(self):
+        dlg = SettingsDialog(self, self._config)
+        if dlg.exec():
+            self._config = dlg.result_config()
+            settings.save(self._config)
+            self._append("设置已保存")
+            self._start_prepare()
 
     def _on_failed(self, msg: str, needs_manual: bool):
         self._set_busy(False)

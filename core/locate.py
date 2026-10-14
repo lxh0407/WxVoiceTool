@@ -1,7 +1,13 @@
+import glob
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    import winreg
+except ImportError:
+    winreg = None
 
 
 @dataclass
@@ -43,6 +49,26 @@ def find_data_root(appdata: Path | None = None) -> Path | None:
         if fallback.is_dir():
             return fallback
     return None
+
+
+def find_weixin_dll() -> str | None:
+    cands: list[str] = []
+    if winreg is not None:
+        for hive, sub in ((winreg.HKEY_CURRENT_USER, r"Software\Tencent\Weixin"),
+                          (winreg.HKEY_LOCAL_MACHINE, r"Software\Tencent\Weixin"),
+                          (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Tencent\Weixin")):
+            try:
+                with winreg.OpenKey(hive, sub) as k:
+                    install, _ = winreg.QueryValueEx(k, "InstallPath")
+                    cands += glob.glob(os.path.join(install, "*", "Weixin.dll"))
+            except OSError:
+                pass
+    for base in (r"C:\Program Files\Tencent\Weixin", r"C:\Program Files (x86)\Tencent\Weixin"):
+        cands += glob.glob(os.path.join(base, "*", "Weixin.dll"))
+    for drive in ("D:", "E:", "F:", "G:"):
+        cands += glob.glob(os.path.join(drive + "\\", "Program Files*", "Tencent", "Weixin", "*", "Weixin.dll"))
+    cands = [c for c in cands if os.path.isfile(c)]
+    return sorted(cands)[-1] if cands else None
 
 
 def find_accounts(data_root: Path) -> list[Account]:
