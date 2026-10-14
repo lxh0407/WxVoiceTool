@@ -5,7 +5,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QFileDialog, QFrame, QHBoxLayout, QHeaderView,
     QInputDialog, QLabel, QLineEdit, QMainWindow, QProgressBar, QPushButton,
-    QRadioButton, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
+    QRadioButton, QSizeGrip, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit,
+    QVBoxLayout, QWidget,
 )
 
 from core import paths, settings
@@ -15,10 +16,53 @@ from ui.workers import ExportWorker, PrepareWorker
 CHECK_COL, NAME_COL, DUR_COL, CNT_COL = 0, 1, 2, 3
 
 
+class TitleBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("TitleBar")
+        self.setFixedHeight(42)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 0, 8, 0)
+        lay.setSpacing(6)
+        name = QLabel("微信语音提取器 · WxVoiceTool")
+        name.setObjectName("AppName")
+        lay.addWidget(name)
+        lay.addStretch(1)
+        for text, obj, slot in (("\u2013", "WinBtn", self._min),
+                                ("\u25a1", "WinBtn", self._max),
+                                ("\u2715", "WinClose", self._close)):
+            b = QPushButton(text)
+            b.setObjectName(obj)
+            b.setFixedSize(34, 26)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(slot)
+            lay.addWidget(b)
+
+    def _min(self):
+        self.window().showMinimized()
+
+    def _max(self):
+        w = self.window()
+        w.showNormal() if w.isMaximized() else w.showMaximized()
+
+    def _close(self):
+        self.window().close()
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            wh = self.window().windowHandle()
+            if wh:
+                wh.startSystemMove()
+
+    def mouseDoubleClickEvent(self, e):
+        self._max()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, auto_start: bool = True):
         super().__init__()
         self.setWindowTitle("微信语音提取器 · WxVoiceTool")
+        self.setWindowFlag(Qt.FramelessWindowHint, True)
         self.resize(940, 620)
         self._index = []
         self._work = None
@@ -33,30 +77,35 @@ class MainWindow(QMainWindow):
     # ---------- UI ----------
     def _build_ui(self):
         root = QWidget()
+        root.setObjectName("Root")
         self.setCentralWidget(root)
         outer = QVBoxLayout(root)
-        outer.setContentsMargins(14, 14, 14, 14)
-        outer.setSpacing(12)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        outer.addWidget(TitleBar(self))
+
+        content = QWidget()
+        outer.addWidget(content, 1)
+        lay = QVBoxLayout(content)
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(10)
 
         # header
         header = QFrame()
         header.setObjectName("Card")
         hl = QHBoxLayout(header)
         hl.setContentsMargins(16, 12, 16, 12)
-        title = QLabel("微信语音提取器")
-        title.setObjectName("Title")
         self.status = QLabel("启动中…")
-        self.status.setObjectName("Sub")
+        self.status.setObjectName("Title")
         self.redetect_btn = QPushButton("重新检测")
         self.redetect_btn.clicked.connect(lambda: self._start_prepare())
         self.settings_btn = QPushButton("设置")
         self.settings_btn.clicked.connect(self._open_settings)
-        hl.addWidget(title)
-        hl.addSpacing(10)
         hl.addWidget(self.status, 1)
         hl.addWidget(self.settings_btn)
         hl.addWidget(self.redetect_btn)
-        outer.addWidget(header)
+        lay.addWidget(header)
 
         # body
         body = QHBoxLayout()
@@ -141,15 +190,21 @@ class MainWindow(QMainWindow):
         rl.addWidget(self.open_btn)
         body.addWidget(right)
 
-        outer.addLayout(body, 1)
+        lay.addLayout(body, 1)
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
-        outer.addWidget(self.progress)
+        lay.addWidget(self.progress)
         self.log = QTextEdit()
         self.log.setReadOnly(True)
-        self.log.setFixedHeight(90)
-        outer.addWidget(self.log)
+        self.log.setFixedHeight(84)
+        lay.addWidget(self.log)
+
+        grip_row = QHBoxLayout()
+        grip_row.setContentsMargins(0, 0, 2, 0)
+        grip_row.addStretch(1)
+        grip_row.addWidget(QSizeGrip(content), 0, Qt.AlignBottom | Qt.AlignRight)
+        lay.addLayout(grip_row)
 
     # ---------- logic ----------
     def _append(self, msg: str):

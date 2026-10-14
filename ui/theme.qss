@@ -4,12 +4,42 @@
     color: #e6e8ee;
 }
 QWidget {
-    background: #1e1f26;
+    background: #20212a;
+}
+#TitleBar {
+    background: #262833;
+    border-bottom: 1px solid #30323d;
+}
+#AppName {
+    color: #9aa0ad;
+    font-size: 12px;
+    font-weight: 600;
+}
+#WinBtn {
+    background: transparent;
+    border: none;
+    color: #c7ccd6;
+    font-size: 15px;
+    border-radius: 6px;
+}
+#WinBtn:hover {
+    background: #3a3f4e;
+}
+#WinClose {
+    background: transparent;
+    border: none;
+    color: #c7ccd6;
+    font-size: 12px;
+    border-radius: 6px;
+}
+#WinClose:hover {
+    background: #e5484d;
+    color: #ffffff;
 }
 #Card {
-    background: #2a2c36;
+    background: #2b2d38;
     border-radius: 12px;
-    border: 1px solid #30323d;
+    border: 1px solid #33353f;
 }
 #Title {
     font-size: 17px;
